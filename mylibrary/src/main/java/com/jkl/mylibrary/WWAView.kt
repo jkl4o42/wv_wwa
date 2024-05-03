@@ -2,8 +2,11 @@ package com.jkl.mylibrary
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.util.AttributeSet
@@ -102,33 +105,64 @@ class WWAView(
                 return true
             }
         }
-
         webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
                 request: WebResourceRequest?
             ): Boolean {
                 return try {
-                    val url = request?.url?.toString()
-                    if (url?.contains(mainValue) == false) {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            context.dataStore.data.firstOrNull()?.let { preferences ->
-                                val cake = preferences[PreferencesKeys.CAKE] ?: ""
-                                if (cake.isEmpty()) {
-                                    context.dataStore.edit { edit ->
-                                        edit[PreferencesKeys.CAKE] = url.toString()
-                                    }
-                                }
-                            }
-                        }
+                    if (!isInternetAvailable()) {
+                        showNoInternetDialog()
+                        return true
                     }
-                    val intent = createIntent(url.toString())
+                    val cake = request?.url?.toString()
+                    cake(cake.toString())
+                    val intent = createIntent(cake.toString())
                     if (intent != null && view?.context != null) {
                         view.context.startActivity(intent)
                         true
                     } else false
                 } catch (e: Exception) {
                     true
+                }
+            }
+        }
+    }
+
+    private fun showNoInternetDialog() {
+        AlertDialog.Builder(context)
+            .setTitle("No Internet Connection")
+            .setMessage("Please check your internet connection and try again.")
+            .setPositiveButton("Try Again") { d, _ ->
+                if (!isInternetAvailable()) {
+                    d.dismiss()
+                    showNoInternetDialog()
+                    return@setPositiveButton
+                }
+                d.dismiss()
+            }.show()
+    }
+
+    fun isInternetAvailable(): Boolean {
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || capabilities.hasTransport(
+            NetworkCapabilities.TRANSPORT_CELLULAR
+        ))
+    }
+
+    private fun cake(value: String) {
+        if (!value.contains(mainValue)) {
+            CoroutineScope(Dispatchers.IO).launch {
+                context.dataStore.data.firstOrNull()?.let { preferences ->
+                    val cake = preferences[PreferencesKeys.CAKE] ?: ""
+                    if (cake.isEmpty()) {
+                        context.dataStore.edit { edit ->
+                            edit[PreferencesKeys.CAKE] = value
+                        }
+                    }
                 }
             }
         }
