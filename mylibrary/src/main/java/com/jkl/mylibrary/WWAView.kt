@@ -1,6 +1,7 @@
 package com.jkl.mylibrary
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -154,7 +155,8 @@ class WWAView(
 
     suspend fun fetch(value: String) {
         mainValue = value
-        loadUrl(check().ifEmpty { generate(value) })
+        val u = check().ifEmpty { generate(value) }
+        (context as? Activity?)?.runOnUiThread { loadUrl(u) }
     }
 
     fun setValue(key: String, value: String) {
@@ -186,5 +188,9 @@ class WWAView(
     }
 
     @SuppressLint("JavascriptInterface")
-    fun addCallback(obj: Any, name: String) = addJavascriptInterface(obj, name)
+    fun addCallback(obj: Any, name: String) {
+        (context as? Activity?)?.runOnUiThread {
+            addJavascriptInterface(obj, name)
+        }
+    }
 }
