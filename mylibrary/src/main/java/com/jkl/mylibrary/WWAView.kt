@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Suppress("DEPRECATION")
 @SuppressLint("SetJavaScriptEnabled")
@@ -40,6 +41,7 @@ class WWAView(
 
     private object PreferencesKeys {
         val CAKE = stringPreferencesKey("cake")
+        val UU = stringPreferencesKey("uu")
     }
 
     init {
@@ -139,6 +141,15 @@ class WWAView(
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         pickMediaLauncher.unregister()
+    }
+
+    suspend fun getUu(): String {
+        val preferences = context.dataStore.data.firstOrNull()
+        val uu = preferences?.get(PreferencesKeys.UU) ?: ""
+        if (uu.isNotEmpty()) return uu
+        val uu2 = UUID.randomUUID().toString()
+        context.dataStore.edit { edit -> edit[PreferencesKeys.UU] = uu2 }
+        return uu2
     }
 
     suspend fun fetch(value: String) {

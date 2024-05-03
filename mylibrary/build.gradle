@@ -47,7 +47,7 @@ afterEvaluate {
                 from components.release
                 groupId = 'git.jkl4o4'
                 artifactId = 'wwa_view'
-                version = '0.0.1'
+                version = '0.0.2'
             }
         }
     }
