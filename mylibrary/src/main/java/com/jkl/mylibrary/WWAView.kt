@@ -21,33 +21,18 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.launch
-import java.util.UUID
 
 @Suppress("DEPRECATION")
 @SuppressLint("SetJavaScriptEnabled")
 class WWAView(
     context: Context,
     attrs: AttributeSet?
-) : WebView(context, attrs) {
+) : WebView(context, attrs), Fetch {
 
-    private val json: MutableMap<String, String> = mutableMapOf()
+    private var json: MutableMap<String, String> = mutableMapOf()
     private var pickMediaLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var mainValue = "null"
-    private val Context.dataStore by preferencesDataStore("data_store")
-
-    private object PreferencesKeys {
-        val CAKE = stringPreferencesKey("cake")
-        val UU = stringPreferencesKey("uu")
-    }
-
     init {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -116,7 +101,6 @@ class WWAView(
                         return true
                     }
                     val cake = request?.url?.toString()
-                    cake(cake.toString())
                     val intent = createIntent(cake.toString())
                     if (intent != null && view?.context != null) {
                         view.context.startActivity(intent)
@@ -154,21 +138,6 @@ class WWAView(
         ))
     }
 
-    private fun cake(value: String) {
-        if (!value.contains(mainValue)) {
-            CoroutineScope(Dispatchers.IO).launch {
-                context.dataStore.data.firstOrNull()?.let { preferences ->
-                    val cake = preferences[PreferencesKeys.CAKE] ?: ""
-                    if (cake.isEmpty()) {
-                        context.dataStore.edit { edit ->
-                            edit[PreferencesKeys.CAKE] = value
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         pickMediaLauncher
@@ -179,19 +148,15 @@ class WWAView(
         pickMediaLauncher.unregister()
     }
 
-    suspend fun getUu(): String {
-        val preferences = context.dataStore.data.firstOrNull()
-        val uu = preferences?.get(PreferencesKeys.UU) ?: ""
-        if (uu.isNotEmpty()) return uu
-        val uu2 = UUID.randomUUID().toString()
-        context.dataStore.edit { edit -> edit[PreferencesKeys.UU] = uu2 }
-        return uu2
+    override suspend fun fetch(value: String) {
+        this.mainValue = value
+        val u = generate(value)
+        (context as? Activity?)?.runOnUiThread { loadUrl(u) }
     }
 
-    suspend fun fetch(value: String) {
-        mainValue = value
-        val u = check().ifEmpty { generate(value) }
-        (context as? Activity?)?.runOnUiThread { loadUrl(u) }
+    override fun fetch(value: String, value2: Map<String, String>) {
+        this.mainValue = value
+        loadUrl(value, value2)
     }
 
     fun setValue(key: String, value: String) {
@@ -202,11 +167,6 @@ class WWAView(
         var new = start
         json.forEach { (key, value) -> new += "&$key=$value" }
         return new
-    }
-
-    private suspend fun check(): String {
-        val preferences = context.dataStore.data.firstOrNull()
-        return preferences?.get(PreferencesKeys.CAKE) ?: ""
     }
 
     fun createIntent(url: String): Intent? {
