@@ -156,7 +156,7 @@ class WWAView(
 
     override fun fetch(value: String, value2: Map<String, String>) {
         this.mainValue = value
-        loadUrl(value, value2)
+        (context as? Activity?)?.runOnUiThread { loadUrl(value, value2) }
     }
 
     fun setValue(key: String, value: String) {
