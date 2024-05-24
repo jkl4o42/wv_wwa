@@ -30,9 +30,11 @@ class WWAView(
 ) : WebView(context, attrs), Fetch {
 
     private var json: MutableMap<String, String> = mutableMapOf()
+    private var map: Map<String, String> = mutableMapOf()
     private var pickMediaLauncher: ActivityResultLauncher<PickVisualMediaRequest>
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var mainValue = "null"
+
     init {
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -96,16 +98,11 @@ class WWAView(
                 request: WebResourceRequest?
             ): Boolean {
                 return try {
-                    if (!isInternetAvailable()) {
-                        showNoInternetDialog()
-                        return true
-                    }
-                    val cake = request?.url?.toString()
-                    val intent = createIntent(cake.toString())
-                    if (intent != null && view?.context != null) {
-                        view.context.startActivity(intent)
+                    val url = request?.url.toString()
+                    url.takeUnless { it.startsWith("http") }?.let {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it)))
                         true
-                    } else false
+                    } ?: false
                 } catch (e: Exception) {
                     true
                 }
@@ -113,35 +110,14 @@ class WWAView(
         }
     }
 
-    private fun showNoInternetDialog() {
-        AlertDialog.Builder(context)
-            .setTitle("No Internet Connection")
-            .setMessage("Please check your internet connection and try again.")
-            .setCancelable(false)
-            .setPositiveButton("Try Again") { d, _ ->
-                if (!isInternetAvailable()) {
-                    d.dismiss()
-                    showNoInternetDialog()
-                    return@setPositiveButton
-                }
-                d.dismiss()
-            }.show()
-    }
-
-    fun isInternetAvailable(): Boolean {
-        val connectivityManager =
-            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = connectivityManager.activeNetwork
-        val capabilities = connectivityManager.getNetworkCapabilities(network)
-        return capabilities != null && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || capabilities.hasTransport(
-            NetworkCapabilities.TRANSPORT_CELLULAR
-        ))
-    }
-
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         pickMediaLauncher
     }
+
+    private fun WWAView.runOnUiThread(callback: () -> Unit) =
+        (context as? Activity?)?.runOnUiThread { callback.invoke() }
+
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
@@ -150,17 +126,25 @@ class WWAView(
 
     override suspend fun fetch(value: String) {
         this.mainValue = value
+        if (this.map.isNotEmpty()) {
+            runOnUiThread { loadUrl(value, map) }
+            return
+        }
         val u = generate(value)
-        (context as? Activity?)?.runOnUiThread { loadUrl(u) }
+        runOnUiThread { loadUrl(u) }
     }
 
     override fun fetch(value: String, value2: Map<String, String>) {
         this.mainValue = value
-        (context as? Activity?)?.runOnUiThread { loadUrl(value, value2) }
+        runOnUiThread { loadUrl(value, value2) }
     }
 
     fun setValue(key: String, value: String) {
         json[key] = value
+    }
+
+    fun addMap(map: Map<String, String>) {
+        this.map = map
     }
 
     private fun generate(start: String): String {
@@ -169,23 +153,9 @@ class WWAView(
         return new
     }
 
-    fun createIntent(url: String): Intent? {
-        val urlActionMappings = listOf(
-            Pair("tel:", Intent.ACTION_DIAL),
-            Pair("mailto:", Intent.ACTION_SENDTO),
-            Pair("https://t.me/joinchat", Intent.ACTION_VIEW)
-        )
-        for ((urlStart, action) in urlActionMappings) {
-            if (url.startsWith(urlStart)) return Intent(action, Uri.parse(url))
-        }
-        if (url.startsWith("http://") || url.startsWith("https://")) return null
-        return Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    @SuppressLint("JavascriptInterface")
+    fun addCallback(obj: Any, name: String) = runOnUiThread {
+        addJavascriptInterface(obj, name)
     }
 
-    @SuppressLint("JavascriptInterface")
-    fun addCallback(obj: Any, name: String) {
-        (context as? Activity?)?.runOnUiThread {
-            addJavascriptInterface(obj, name)
-        }
-    }
 }
